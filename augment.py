@@ -19,61 +19,55 @@ def OneOf(aug_a, aug_b):
     return aug_b
 
 
-def plus7rotation(df0):
+def plus7rotation(df):
     # +7 degree rotation
-    df0_plus7 = pd.DataFrame()
-    df0_plus7["uid"] = df0["uid"]
-    df0_plus7["pose"] = ""
-    df0_plus7["hand1"] = ""
-    df0_plus7["hand2"] = ""
-    df0_plus7["label"] = df0["label"]
+    df_augmented = pd.DataFrame()
+    df_augmented["uid"] = df["uid"]
+    df_augmented["pose"] = ""
+    df_augmented["hand1"] = ""
+    df_augmented["hand2"] = ""
+    df_augmented["label"] = df["label"]
 
     theta = 7 * (np.pi / 180)
     c, s = np.cos(theta), np.sin(theta)
-    augmentMatrix = np.array([[c, -s], [s, c]])
+    rotation_matrix = np.array([[c, -s], [s, c]])
 
-    for i in range(df0.shape[0]):
+    for i in range(df.shape[0]):
         for col in ["pose", "hand1", "hand2"]:
-            try:
-                matrix = np.array(df0.iloc[i].loc[col], dtype=np.float)
-                matrix = np.matmul(matrix, augmentMatrix)
-                matrix = np.where(np.isnan(matrix), None, matrix).tolist()
-                df0_plus7.at[i, col] = matrix
-            except:
-                print(i)
+            matrix = np.array(df.loc[i, col], dtype=np.float)
+            matrix = np.matmul(matrix, rotation_matrix)
+            matrix = np.where(np.isnan(matrix), None, matrix).tolist()
+            df_augmented.at[i, col] = matrix
 
-    return df0_plus7
+    return df_augmented
 
 
-def minus7rotation(df0):
+def minus7rotation(df):
     # -7 degree rotation
-    df0_minus7 = pd.DataFrame()
-    df0_minus7["uid"] = df0["uid"]
-    df0_minus7["pose"] = ""
-    df0_minus7["hand1"] = ""
-    df0_minus7["hand2"] = ""
-    df0_minus7["label"] = df0["label"]
+    df_augmented = pd.DataFrame()
+    df_augmented["uid"] = df["uid"]
+    df_augmented["pose"] = ""
+    df_augmented["hand1"] = ""
+    df_augmented["hand2"] = ""
+    df_augmented["label"] = df["label"]
 
     theta = -7 * (np.pi / 180)
     c, s = np.cos(theta), np.sin(theta)
-    augmentMatrix = np.array([[c, -s], [s, c]])
+    rotation_matrix = np.array([[c, -s], [s, c]])
 
-    for i in range(df0.shape[0]):
+    for i in range(df.shape[0]):
         for col in ["pose", "hand1", "hand2"]:
-            try:
-                matrix = np.array(df0.iloc[i].loc[col], dtype=np.float)
-                matrix = np.matmul(matrix, augmentMatrix)
-                matrix = np.where(np.isnan(matrix), None, matrix).tolist()
-                df0_minus7.at[i, col] = matrix
-            except:
-                print(i)
+            matrix = np.array(df.loc[i, col], dtype=np.float)
+            matrix = np.matmul(matrix, rotation_matrix)
+            matrix = np.where(np.isnan(matrix), None, matrix).tolist()
+            df_augmented.at[i, col] = matrix
 
-    return df0_minus7
+    return df_augmented
 
 
-def gaussSample(df0):
+def gaussSample(df):
     # Random Gaussian sampling
-    df0_gaussSample = df0.copy()
+    df_augmented = df.copy()
     dv = 0.05 * 10 ** -2
     sv = 0.08 * 10 ** -2
     lv = 0.08 * 10 ** -1
@@ -105,144 +99,122 @@ def gaussSample(df0):
         lv,
     ]
 
-    x_width = 960
-    y_height = 540
-    for i in range(df0.shape[0]):
-        if np.count_nonzero(df0.iloc[i].loc["pose"]) == 0:
-            padIdx = i
+    ## Check if keypoints is range [0, 1]
+    x_width = 1920
+    y_height = 1080
+    for i in range(df.shape[0]):
+        if np.count_nonzero(df.loc[i, "pose"]) == 0:
             break
-        try:
-            pose = np.array(df0.iloc[i].loc["pose"], dtype=np.float)
-            pose[:, 0] /= x_width
-            pose[:, 1] /= y_height
-            poseVariance = np.column_stack((sigma, sigma))
-            pose = np.random.normal(pose, poseVariance)
-            pose[:, 0] *= x_width
-            pose[:, 1] *= y_height
-            pose = np.where(np.isnan(pose), None, pose).tolist()
 
-            hand1 = np.array(df0.iloc[i].loc["hand1"], dtype=np.float)
-            hand1[:, 0] /= x_width
-            hand1[:, 1] /= y_height
-            hand1 = np.random.normal(hand1, dv)
-            hand1[:, 0] *= x_width
-            hand1[:, 1] *= y_height
-            hand1 = np.where(np.isnan(hand1), None, hand1).tolist()
+        pose = np.array(df.loc[i, "pose"], dtype=np.float)
+        pose[:, 0] /= x_width
+        pose[:, 1] /= y_height
+        pose_variance = np.column_stack((sigma, sigma))
+        pose = np.random.normal(pose, pose_variance)
+        pose[:, 0] *= x_width
+        pose[:, 1] *= y_height
+        pose = np.where(np.isnan(pose), None, pose).tolist()
 
-            hand2 = np.array(df0.iloc[i].loc["hand1"], dtype=np.float)
-            hand2[:, 0] /= x_width
-            hand2[:, 1] /= y_height
-            hand2 = np.random.normal(hand2, dv)
-            hand2[:, 0] *= x_width
-            hand2[:, 1] *= y_height
-            hand2 = np.where(np.isnan(hand2), None, hand2).tolist()
+        hand1 = np.array(df.loc[i, "hand1"], dtype=np.float)
+        hand1[:, 0] /= x_width
+        hand1[:, 1] /= y_height
+        hand1 = np.random.normal(hand1, dv)
+        hand1[:, 0] *= x_width
+        hand1[:, 1] *= y_height
+        hand1 = np.where(np.isnan(hand1), None, hand1).tolist()
 
-            df0_gaussSample.at[i, "pose"] = pose
-            df0_gaussSample.at[i, "hand1"] = hand1
-            df0_gaussSample.at[i, "hand2"] = hand2
-        except:
-            print(i)
-            pass
+        hand2 = np.array(df.loc[i, "hand2"], dtype=np.float)
+        hand2[:, 0] /= x_width
+        hand2[:, 1] /= y_height
+        hand2 = np.random.normal(hand2, dv)
+        hand2[:, 0] *= x_width
+        hand2[:, 1] *= y_height
+        hand2 = np.where(np.isnan(hand2), None, hand2).tolist()
 
-    return df0_gaussSample
+        df_augmented.at[i, "pose"] = pose
+        df_augmented.at[i, "hand1"] = hand1
+        df_augmented.at[i, "hand2"] = hand2
+
+    return df_augmented
 
 
-def cutout(df0):
+def cutout(df):
     # cutout
-    df0_cutout = df0.copy()
+    df_augmented = df.copy()
 
-    padIdx = 0
-    for i in range(df0.shape[0]):
-        if np.count_nonzero(df0.iloc[i].loc["pose"]) == 0:
-            padIdx = i
+    pad_idx = 0
+    for i in range(df.shape[0]):
+        if np.count_nonzero(df.loc[i, "pose"]) == 0:
+            pad_idx = i
             break
 
-    for i in range(df0.shape[0]):
-        if np.count_nonzero(df0.iloc[i].loc["pose"]) == 0:
+    for i in range(df.shape[0]):
+        if np.count_nonzero(df.loc[i, "pose"]) == 0:
             break
-        if i < padIdx:
-            pose = np.array(df0.iloc[i].loc["pose"])
-            hand1 = np.array(df0.iloc[i].loc["hand1"])
-            hand2 = np.array(df0.iloc[i].loc["hand1"])
-            poseZeroIdx = np.random.choice(25, 3, replace=False)
-            hand1ZeroIdx = np.random.choice(21, 3, replace=False)
-            hand2ZeroIdx = np.random.choice(21, 3, replace=False)
 
-            for i in poseZeroIdx:
+        if i < pad_idx:
+            pose = np.array(df.loc[i, "pose"])
+            hand1 = np.array(df.loc[i, "hand1"])
+            hand2 = np.array(df.loc[i, "hand2"])
+            pose_zero_idx = np.random.choice(25, 3, replace=False)
+            hand1_zero_idx = np.random.choice(21, 3, replace=False)
+            hand2_zero_idx = np.random.choice(21, 3, replace=False)
+
+            for i in pose_zero_idx:
                 pose[i] = [0, 0]
-            for i in hand1ZeroIdx:
+            for i in hand1_zero_idx:
                 hand1[i] = [0, 0]
-            for i in hand2ZeroIdx:
+            for i in hand2_zero_idx:
                 hand2[i] = [0, 0]
 
             pose = pose.tolist()
             hand1 = hand1.tolist()
             hand2 = hand2.tolist()
 
-            df0_cutout.at[i, "pose"] = pose
-            df0_cutout.at[i, "hand1"] = hand1
-            df0_cutout.at[i, "hand2"] = hand2
+            df_augmented.at[i, "pose"] = pose
+            df_augmented.at[i, "hand1"] = hand1
+            df_augmented.at[i, "hand2"] = hand2
 
-    return df0_cutout
+    return df_augmented
 
 
-def downsample(df0):
+def downsample(df):
     # downsample
-    df0_downsample = df0.copy()
+    df_augmented = df.copy()
     drop_idx = np.random.choice(154, 15)  # 154 frames , 15 frames
-    df0_downsample = df0_downsample.drop(index=drop_idx)
-    return df0_downsample
+    df_augmented = df_augmented.drop(index=drop_idx)
+    return df_augmented
 
 
-def upsample(df0):
+def upsample(df):
     # upsample
-    df0_upsample = pd.DataFrame(
+    def get_avg(df, idx, col):
+        aug_points = (
+            (
+                np.array(df.loc[idx - 1, col], dtype=np.float)
+                + np.array(df.loc[idx, col], dtype=np.float)
+            )
+            / 2
+        ).tolist()
+        return np.where(np.isnan(aug_points), None, aug_points).tolist()
+
+    df_augmented = pd.DataFrame(
         index=np.arange(169), columns=["uid", "pose", "hand1", "hand2", "label"]
     )  # 154 + 15 extra frames
-    df0_upsample["uid"] = df0.iloc[0].loc["uid"]
+    df_augmented["uid"] = df.iloc[0].loc["uid"]
 
     j = 0
-    for i in range(df0_upsample.shape[0]):
+    for i in range(df_augmented.shape[0]):
         if i % 10 != 0 or i == 0:
-            df0_upsample.at[i, "pose"] = df0.iloc[j].loc["pose"]
-            df0_upsample.at[i, "hand1"] = df0.iloc[j].loc["hand1"]
-            df0_upsample.at[i, "hand2"] = df0.iloc[j].loc["hand2"]
+            df_augmented.at[i, "pose"] = df.loc[j, "pose"]
+            df_augmented.at[i, "hand1"] = df.loc[j, "hand1"]
+            df_augmented.at[i, "hand2"] = df.loc[j, "hand2"]
             j += 1
-        else:
-            try:
-                pose = (
-                    np.array(df0.iloc[j - 1].loc["pose"], dtype=np.float)
-                    + np.array(df0.iloc[j].loc["pose"], dtype=np.float)
-                ) / 2  # get average of two frames
-                # why dtype = np.float: convert None to np.nan, so that a complete frame isn't missing
-                df0_upsample.at[i, "pose"] = np.where(
-                    np.isnan(pose), None, pose
-                ).tolist()  # make np.nan to None
+            continue
 
-                hand1 = (
-                    (
-                        np.array(df0.iloc[j - 1].loc["hand1"], dtype=np.float)
-                        + np.array(df0.iloc[j].loc["hand1"], dtype=np.float)
-                    )
-                    / 2
-                ).tolist()
-                df0_upsample.at[i, "hand1"] = np.where(
-                    np.isnan(hand1), None, hand1
-                ).tolist()
+        df_augmented.at[i, "pose"] = get_avg(df, j, "pose")
+        df_augmented.at[i, "hand1"] = get_avg(df, j, "hand1")
+        df_augmented.at[i, "hand2"] = get_avg(df, j, "hand2")
 
-                hand2 = (
-                    (
-                        np.array(df0.iloc[j - 1].loc["hand2"], dtype=np.float)
-                        + np.array(df0.iloc[j].loc["hand2"], dtype=np.float)
-                    )
-                    / 2
-                ).tolist()
-                df0_upsample.at[i, "hand2"] = np.where(
-                    np.isnan(hand2), None, hand2
-                ).tolist()
-
-            except:
-                print(i)
-
-    df0_upsample["label"] = df0.iloc[0].loc["label"]
-    return df0_upsample
+    df_augmented["label"] = df.iloc[0].loc["label"]
+    return df_augmented

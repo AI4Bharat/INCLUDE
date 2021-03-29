@@ -1,7 +1,10 @@
+import json
+import glob
+import os
+
 import torch
 from torch.utils import data
 import numpy as np
-import json
 import pandas as pd
 from augment import (
     Augmentation,
@@ -15,15 +18,17 @@ from augment import (
 )
 
 
-class IncludeDataset(data.Dataset):
+class KeypointsDataset(data.Dataset):
     def __init__(
-        self, df_path, use_augs, label_map_path="utils/label_map.json", mode="train"
+        self, keypoints_path, use_augs, label_map, mode="train", max_frame_len=200
     ):
-        self.df = pd.read_csv(df_path)
+        self.df = pd.read_json(keypoints_path)
         self.mode = mode
         self.use_augs = use_augs
-        self.label_map = self._load_file(label_map_path)
+        self.label_map = label_map
+        self.max_frame_len = max_frame_len
         self.augs = None
+
         if mode == "train" and use_augs:
             self.augs = [
                 Augmentation(OneOf(plus7rotation, minus7rotation), p=0.4),
@@ -31,11 +36,6 @@ class IncludeDataset(data.Dataset):
                 Augmentation(cutout, p=0.4),
                 Augmentation(OneOf(upsample, downsample), p=0.4),
             ]
-
-    def _load_file(self, path):
-        with open(path, "r") as fp:
-            data = json.load(fp)
-        return data
 
     def augment(self, df):
         for aug in self.augs:
@@ -54,37 +54,29 @@ class IncludeDataset(data.Dataset):
 
         return np.stack([arr_x, arr_y], axis=-1)
 
+    def combine_xy(self, x, y):
+        x, y = np.array(x), np.array(y)
+        _, length = x.shape
+        x = x.reshape((-1, length, 1))
+        y = y.reshape((-1, length, 1))
+        return np.concatenate((x, y), -1).astype(np.float32)
+
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        label = row[-1]
+        label = row.label
         label = "".join([i for i in label if i.isalpha()]).lower()
-        values = row[1:-1].values.reshape(154, -1)
 
-        pose = np.concatenate(
-            (values[:, :25].reshape(154, -1, 1), values[:, 25:50].reshape(154, -1, 1)),
-            -1,
-        ).astype(np.float32)
-        h1 = np.concatenate(
-            (
-                values[:, 50:71].reshape(154, -1, 1),
-                values[:, 71:92].reshape(154, -1, 1),
-            ),
-            -1,
-        ).astype(np.float32)
-        h2 = np.concatenate(
-            (
-                values[:, 92:113].reshape(154, -1, 1),
-                values[:, 113:134].reshape(154, -1, 1),
-            ),
-            -1,
-        ).astype(np.float32)
+        pose = self.combine_xy(row.pose_x, row.pose_y)
+        h1 = self.combine_xy(row.hand1_x, row.hand1_y)
+        h2 = self.combine_xy(row.hand2_x, row.hand2_y)
+
         pose = self.interpolate(pose)
         h1 = self.interpolate(h1)
         h2 = self.interpolate(h2)
 
         df = pd.DataFrame.from_dict(
             {
-                "uid": row.filePath,
+                "uid": row.uid,
                 "pose": pose.tolist(),
                 "hand1": h1.tolist(),
                 "hand2": h2.tolist(),
@@ -93,6 +85,7 @@ class IncludeDataset(data.Dataset):
         )
         if self.mode == "train" and self.use_augs:
             df = self.augment(df)
+
         pose = (
             np.array(list(map(np.array, df.pose.values)))
             .reshape(-1, 50)
@@ -110,10 +103,12 @@ class IncludeDataset(data.Dataset):
         )
         final_data = np.concatenate((pose, h1, h2), -1)
         final_data = np.pad(
-            final_data, ((0, 169 - final_data.shape[0]), (0, 0)), "constant"
+            final_data,
+            ((0, self.max_frame_len - final_data.shape[0]), (0, 0)),
+            "constant",
         )
         return {
-            "uid": row.filePath,
+            "uid": row.uid,
             "data": final_data,
             "label": self.label_map[label],
             "lablel_string": label,
@@ -121,3 +116,25 @@ class IncludeDataset(data.Dataset):
 
     def __len__(self):
         return len(self.df)
+
+
+class FeaturesDatset(data.Dataset):
+    def __init__(self, features_dir, label_map, mode="train"):
+        self.features_dir = features_dir
+        self.file_paths = sorted(glob.glob(os.path.join(features_dir, "*.npy")))
+        self.label_map = label_map
+        self.mode = mode
+
+    def __getitem__(self, i):
+        file_path = self.file_paths[i]
+        data = np.load(file_path)
+        label = os.path.basename(file_path).split("_")[0]
+        return {
+            "uid": os.path.basename(file_path).split(".")[0],
+            "data": data,
+            "label": self.label_map[label],
+            "lablel_string": label,
+        }
+
+    def __len__(self):
+        return len(self.file_paths)

@@ -1,0 +1,7 @@
+torch
+transformers
+timm
+mediapipe
+tqdm
+scikit-learn
+xgboost ## installs CPU version, check docs for GPU compatible version

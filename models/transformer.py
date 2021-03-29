@@ -4,27 +4,6 @@ import torch.nn.functional as F
 import transformers
 
 
-class LSTM(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.lstm = nn.LSTM(
-            input_size=134,
-            hidden_size=256,
-            num_layers=5,
-            batch_first=True,
-            bidirectional=True,
-            dropout=0.2,
-        )
-        self.l1 = nn.Linear(in_features=512, out_features=50)
-
-    def forward(self, x):
-        x, (_, _) = self.lstm(x)
-        x = torch.max(x, dim=1).values
-        x = F.dropout(x, p=0.3)
-        x = self.l1(x)
-        return x
-
-
 class PositionEmbedding(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -53,20 +32,19 @@ class PositionEmbedding(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self):
+    def __init__(self, config, n_classes=50):
         super().__init__()
-        config = transformers.BertConfig()
-        config.hidden_size = 512
-        config.num_attention_heads = 8
-        config.num_hidden_layers = 4
-        config.max_position_embeddings = 169
-
-        self.l1 = nn.Linear(in_features=134, out_features=512)
+        self.l1 = nn.Linear(
+            in_features=config.input_size, out_features=config.hidden_size
+        )
         self.embedding = PositionEmbedding(config)
         self.layers = nn.ModuleList(
-            [transformers.BertLayer(config) for _ in range(config.num_hidden_layers)]
+            [
+                transformers.BertLayer(config.model_config)
+                for _ in range(config.num_hidden_layers)
+            ]
         )
-        self.l2 = nn.Linear(in_features=512, out_features=50)
+        self.l2 = nn.Linear(in_features=config.hidden_size, out_features=n_classes)
 
     def forward(self, x):
         x = self.l1(x)
