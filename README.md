@@ -2,6 +2,27 @@
 
 This repository contains code for training models on [INCLUDE](https://zenodo.org/record/4010759) dataset
 
+# Dependencies
+
+Install the dependencies through the following command
+
+```bash
+>> pip install -r requirements.txt
+```
+
+
+
+## Steps
+- Download the INCLUDE dataset
+- run `generate_keypoints.py` to save keypoints from Mediapipe Hands and Blazepose for train, validation and test videos. 
+```bash
+>> python generate_keypoints.py --include_dir <path to downloaded dataset> --save_dir <path to save dir> --dataset <include/include50>
+```
+- run `runner.py` to train a machine learning model on the dataset
+```bash
+>> python runner.py --dataset <include/include50> --use_augs --model transformer --data_dir <location to saved keypoints>
+```
+
 ## Citation
 
 ```
