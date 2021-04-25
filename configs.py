@@ -22,6 +22,7 @@ class XgbConfig:
     colsample_bytree: float = 0.7747027267489391
     reg_lambda: int = 3
     objective: str = "multi:softprob"
+    eval_metric: str = "mlogloss"
     tree_method: str = "gpu_hist"  ## change it to `hist` if gpu not available
 
 

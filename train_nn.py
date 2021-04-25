@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils import data
 from sklearn.metrics import accuracy_score
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 from models import CNN, LSTM, Transformer
 from configs import CnnConfig, LstmConfig, TransformerConfig
@@ -39,10 +39,11 @@ def train(dataloader, model, optimizer, device):
         optimizer.step()
 
         losses.update(loss.item())
+        preds = preds.detach().cpu()
         accuracy.update(
             accuracy_score(
                 label.cpu().numpy(),
-                torch.argmax(torch.softmax(preds.detach()).cpu().numpy()),
+                torch.argmax(torch.softmax(preds, dim=-1), dim=-1).numpy(),
             )
         )
         pbar.set_postfix(loss=losses.avg, accuracy=accuracy.avg)
@@ -69,10 +70,11 @@ def validate(dataloader, model, device):
         loss = F.cross_entropy(preds, label)
 
         losses.update(loss.item())
+        preds = preds.detach().cpu()
         accuracy.update(
             accuracy_score(
                 label.cpu().numpy(),
-                torch.argmax(torch.softmax(preds.detach()).cpu().numpy()),
+                torch.argmax(torch.softmax(preds, dim=-1), dim=-1).numpy(),
             )
         )
         pbar.set_postfix(loss=losses.avg, accuracy=accuracy.avg)
@@ -85,9 +87,8 @@ def validate(dataloader, model, device):
 
 def fit(args):
     exp_name = get_experiment_name(args)
-    logging.basicConfig(
-        filename=f"{exp_name}.log", level=logging.INFO, format="%(message)s"
-    )
+    logging_path = os.path.join(args.save_path, exp_name) + ".log"
+    logging.basicConfig(filename=logging_path, level=logging.INFO, format="%(message)s")
     seed_everything(args.seed)
     label_map = load_label_map(args.dataset)
 
@@ -146,7 +147,7 @@ def fit(args):
             config.input_size = CnnConfig.output_dim
         model = LSTM(config=config, n_classes=n_classes)
     else:
-        config = TransformerConfig(size=args.size)
+        config = TransformerConfig(size=args.transformer_size)
         if args.use_cnn:
             config.input_size = CnnConfig.output_dim
         model = Transformer(config=config, n_classes=n_classes)
@@ -171,7 +172,7 @@ def fit(args):
     ]
     optimizer = torch.optim.AdamW(optimizer_parameters, lr=args.learning_rate)
 
-    model_path = os.path.join(args.save_path, exp_name)
+    model_path = os.path.join(args.save_path, exp_name) + ".pth"
     es = EarlyStopping(patience=5, mode="max")
     for epoch in range(args.epochs):
         print(f"Epoch: {epoch+1}/{args.epochs}")
@@ -191,6 +192,8 @@ def fit(args):
         if es.early_stop:
             print("Early stopping")
             break
+
+    print("### Training Complete ###")
 
 
 def evaluate(args):
@@ -230,7 +233,7 @@ def evaluate(args):
             config.input_size = CnnConfig.output_dim
         model = LSTM(config=config, n_classes=n_classes)
     else:
-        config = TransformerConfig(size=args.size)
+        config = TransformerConfig(size=args.transformer_size)
         if args.use_cnn:
             config.input_size = CnnConfig.output_dim
         model = Transformer(config=config, n_classes=n_classes)
@@ -238,11 +241,11 @@ def evaluate(args):
     model = model.to(device)
 
     exp_name = get_experiment_name(args)
-    model_path = os.path.join(args.save_path, exp_name, ".pth")
+    model_path = os.path.join(args.save_path, exp_name) + ".pth"
     ckpt = torch.load(model_path)
     model.load_state_dict(ckpt["model"])
     print("### Model loaded ###")
 
     test_loss, test_acc = validate(dataloader, model, device)
-    print("Evaluation Results:\n")
+    print("Evaluation Results:")
     print(f"Loss: {test_loss}, Accuracy: {test_acc}")

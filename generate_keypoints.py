@@ -87,7 +87,7 @@ def process_video(path):
     hand1_points_x, hand1_points_y = [], []
     hand2_points_x, hand2_points_y = [], []
 
-    label = path.split("/")[-2]
+    label = path.split("/")[3]
     label = "".join([i for i in label if i.isalpha()]).lower()
     uid = os.path.splitext(os.path.basename(path))[0]
     uid = "_".join([label, uid])
@@ -106,6 +106,7 @@ def process_video(path):
         hand1_x, hand1_y, hand2_x, hand2_y = process_hand_keypoints(hand_results)
         pose_x, pose_y = process_pose_keypoints(pose_results)
 
+        ## Assign hands to correct positions
         if len(hand1_x) > 0 and len(hand2_x) == 0:
             if swap_hands(
                 left_wrist=(pose_x[15], pose_y[15]),
@@ -142,6 +143,16 @@ def process_video(path):
         n_frames += 1
 
     cap.release()
+
+    ## Unable to open video
+    pose_points_x = pose_points_x if pose_points_x else [[0.0] * 25]
+    pose_points_y = pose_points_y if pose_points_y else [[0.0] * 25]
+
+    hand1_points_x = hand1_points_x if hand1_points_x else [[0.0] * 21]
+    hand1_points_y = hand1_points_y if hand1_points_y else [[0.0] * 21]
+    hand2_points_x = hand2_points_x if hand2_points_x else [[0.0] * 21]
+    hand2_points_y = hand2_points_y if hand2_points_y else [[0.0] * 21]
+
     return {
         "uid": uid,
         "label": label,
@@ -164,9 +175,13 @@ def load_file(path, include_dir):
 
 
 def load_train_test_val_paths(args):
-    train_paths = load_file(f"{args.dataset}_train.txt", args.include_dir)
-    val_paths = load_file(f"{args.dataset}_val.txt", args.include_dir)
-    test_paths = load_file(f"{args.dataset}_test.txt", args.include_dir)
+    train_paths = load_file(
+        f"train_test_paths/{args.dataset}_train.txt", args.include_dir
+    )
+    val_paths = load_file(f"train_test_paths/{args.dataset}_val.txt", args.include_dir)
+    test_paths = load_file(
+        f"train_test_paths/{args.dataset}_test.txt", args.include_dir
+    )
     return train_paths, val_paths, test_paths
 
 
@@ -176,6 +191,7 @@ def save_keypoints(dataset, file_paths, mode):
         for path in tqdm(file_paths, desc=f"processing {mode} videos")
     )
 
+    print(f"Saving {mode} points.....")
     save_path = os.path.join(args.save_dir, f"{dataset}_{mode}_keypoints.json")
     with open(save_path, "w") as f:
         json.dump(outputs, f)

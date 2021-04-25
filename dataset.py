@@ -109,7 +109,7 @@ class KeypointsDataset(data.Dataset):
         )
         return {
             "uid": row.uid,
-            "data": final_data,
+            "data": torch.FloatTensor(final_data),
             "label": self.label_map[label],
             "lablel_string": label,
         }
@@ -131,7 +131,7 @@ class FeaturesDatset(data.Dataset):
         label = os.path.basename(file_path).split("_")[0]
         return {
             "uid": os.path.basename(file_path).split(".")[0],
-            "data": data,
+            "data": torch.FloatTensor(data),
             "label": self.label_map[label],
             "lablel_string": label,
         }

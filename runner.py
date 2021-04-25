@@ -41,6 +41,19 @@ parser.add_argument(
     type=str,
     help="location to save trained model",
 )
+parser.add_argument(
+    "--epochs", default=50, type=int, help="number of epochs to train the model"
+)
+parser.add_argument("--batch_size", default=128, type=int, help="batch size of data")
+parser.add_argument(
+    "--learning_rate",
+    default=1e-3,
+    type=float,
+    help="learning rate for training neural net",
+)
+parser.add_argument(
+    "--transformer_size", default="small", type=str, help="options: small, large"
+)
 args = parser.parse_args()
 
 

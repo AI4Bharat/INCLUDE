@@ -33,8 +33,14 @@ def combine_xy(x, y):
     return np.concatenate((x, y), -1).astype(np.float32)
 
 
-def split_xy(value):
-    return value[:, :, 0], value[:, :, 1]
+def split_xy(data):
+    value_x, value_y = [], []
+    for row in data:
+        row = np.asarray(row)
+        value_x.append(row[:, 0])
+        value_y.append(row[:, 1])
+    value_x, value_y = np.asarray(value_x), np.asarray(value_y)
+    return value_x, value_y
 
 
 def augment_sample(df, augs):
@@ -54,19 +60,19 @@ def augment_sample(df, augs):
     augmented_samples = []
     for augmentation in augs:
         df_augmented = augmentation(input_df)
-        pose_x, pose_y = df_augmented.pose
-        hand1_x, hand1_y = df_augmented.hand1
-        hand2_x, hand2_y = df_augmented.hand2
+        pose_x, pose_y = split_xy(df_augmented.pose)
+        hand1_x, hand1_y = split_xy(df_augmented.hand1)
+        hand2_x, hand2_y = split_xy(df_augmented.hand2)
         save_df = pd.DataFrame.from_dict(
             {
-                "uid": df_augmented.uid + "_" + augmentation.__name__,
-                "label": df_augmented.label,
-                "pose_x": pose_x,
-                "pose_y": pose_y,
-                "hand1_x": hand1_x,
-                "hand1_y": hand1_y,
-                "hand2_x": hand2_x,
-                "hand2_y": hand2_y,
+                "uid": df.uid + "_" + augmentation.__name__,
+                "label": df.label,
+                "pose_x": pose_x.tolist(),
+                "pose_y": pose_y.tolist(),
+                "hand1_x": hand1_x.tolist(),
+                "hand1_y": hand1_y.tolist(),
+                "hand2_x": hand2_x.tolist(),
+                "hand2_y": hand2_y.tolist(),
                 "n_frames": df.n_frames,
             }
         )
@@ -98,7 +104,7 @@ def preprocess(df, use_augs, label_map, mode):
         row = df.loc[i, feature_cols]
         flatten_features = np.hstack(list(map(flatten, row.values)))
         x.append(flatten_features)
-        y.append(row.label)
+        y.append(label_map[df.loc[i, "label"]])
         i += 1
         pbar.update(1)
     x = np.stack(x)
@@ -118,7 +124,8 @@ def fit(args):
     x_train, y_train = preprocess(train_df, args.use_augs, label_map, "train")
     x_val, y_val = preprocess(val_df, args.use_augs, label_map, "val")
 
-    model = Xgboost(config=XgbConfig)
+    config = XgbConfig()
+    model = Xgboost(config=config)
     model.fit(x_train, y_train, x_val, y_val)
 
     exp_name = get_experiment_name(args)
@@ -135,7 +142,8 @@ def evaluate(args):
     x_test, y_test = preprocess(test_df, args.use_augs, label_map, "test")
 
     exp_name = get_experiment_name(args)
-    model = Xgboost(config=XgbConfig)
+    config = XgbConfig()
+    model = Xgboost(config=config)
     load_path = os.path.join(args.save_dir, exp_name, ".pickle.dat")
     model.load(load_path)
     print("### Model loaded ###")

@@ -8,8 +8,8 @@ import torch.nn.functional as F
 class LSTM(nn.Module):
     def __init__(self, config, n_classes=50):
         super().__init__()
-        config = asdict(config)
-        self.lstm = nn.LSTM(**config)
+        config_dict = asdict(config)
+        self.lstm = nn.LSTM(**config_dict)
         in_features = (
             config.hidden_size * 2 if config.bidirectional else config.hidden_size
         )

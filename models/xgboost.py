@@ -7,7 +7,7 @@ import xgboost
 class Xgboost:
     def __init__(self, config):
         config = asdict(config)
-        self.model = xgboost.XGBClassifier(**config)
+        self.model = xgboost.XGBClassifier(use_label_encoder=False, **config)
 
     def __call__(self, x):
         return self.model.predict(x)

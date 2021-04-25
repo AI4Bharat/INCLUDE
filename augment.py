@@ -180,8 +180,12 @@ def cutout(df):
 
 def downsample(df):
     # downsample
+    frame_len = df.shape[0]
+    if frame_len < 15:
+        return df.copy()
+
     df_augmented = df.copy()
-    drop_idx = np.random.choice(154, 15)  # 154 frames , 15 frames
+    drop_idx = np.random.choice(frame_len, 15)  # 154 frames , 15 frames
     df_augmented = df_augmented.drop(index=drop_idx)
     return df_augmented
 
