@@ -29,7 +29,7 @@ def draw_hands(
             thickness,
         )
 
-    for _, (x, y) in enumerate(hand_x):
+    for x, y in zip(hand_x, hand_y):
         cv2.circle(image, (int(x), int(y)), thickness, point_color, thickness)
 
     return image
@@ -105,7 +105,7 @@ def cnn_feat(video_record, save_dir):
 
     model = CNN(CnnConfig)
     features = []
-    for i in range(video_record.n_frame):
+    for i in range(video_record["n_frames"]):
         image = np.zeros((1080, 1920, 3), np.uint8)
         pose_x = video_record["pose_x"][i]
         pose_y = video_record["pose_y"][i]

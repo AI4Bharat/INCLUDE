@@ -202,9 +202,12 @@ def upsample(df):
         ).tolist()
         return np.where(np.isnan(aug_points), None, aug_points).tolist()
 
+    frame_length = df.shape[0]
+    additional_frames = frame_length // 10
     df_augmented = pd.DataFrame(
-        index=np.arange(169), columns=["uid", "pose", "hand1", "hand2", "label"]
-    )  # 154 + 15 extra frames
+        index=np.arange(frame_length + additional_frames),
+        columns=["uid", "pose", "hand1", "hand2", "label"],
+    )
     df_augmented["uid"] = df.iloc[0].loc["uid"]
 
     j = 0

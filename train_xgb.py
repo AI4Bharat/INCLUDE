@@ -37,6 +37,8 @@ def split_xy(data):
     value_x, value_y = [], []
     for row in data:
         row = np.asarray(row)
+        if row.shape == ():
+            continue
         value_x.append(row[:, 0])
         value_y.append(row[:, 1])
     value_x, value_y = np.asarray(value_x), np.asarray(value_y)
@@ -63,7 +65,7 @@ def augment_sample(df, augs):
         pose_x, pose_y = split_xy(df_augmented.pose)
         hand1_x, hand1_y = split_xy(df_augmented.hand1)
         hand2_x, hand2_y = split_xy(df_augmented.hand2)
-        save_df = pd.DataFrame.from_dict(
+        save_df = pd.Series(
             {
                 "uid": df.uid + "_" + augmentation.__name__,
                 "label": df.label,
@@ -85,11 +87,9 @@ def preprocess(df, use_augs, label_map, mode):
     feature_cols = ["pose_x", "pose_y", "hand1_x", "hand1_y", "hand2_x", "hand2_y"]
     x, y = [], []
     i = 0
-    if use_augs and mode == "train":
-        pbar = tqdm(total=df.shape[0] * 7, desc=f"Processing {mode} file....")
-    else:
-        pbar = tqdm(total=df.shape[0], desc=f"Processing {mode} file....")
-    while i < df.shape[0]:
+    no_of_videos = df.shape[0]
+    pbar = tqdm(total=no_of_videos, desc=f"Processing {mode} file....")
+    while i < no_of_videos:
         if use_augs and mode == "train":
             augs = [
                 plus7rotation,
