@@ -1,5 +1,6 @@
 import warnings
 import argparse
+import sys
 
 import train_nn
 import train_xgb
@@ -47,12 +48,23 @@ parser.add_argument(
 parser.add_argument("--batch_size", default=128, type=int, help="batch size of data")
 parser.add_argument(
     "--learning_rate",
-    default=1e-3,
+    default=1e-2,
     type=float,
     help="learning rate for training neural net",
 )
 parser.add_argument(
     "--transformer_size", default="small", type=str, help="options: small, large"
+)
+parser.add_argument(
+    "--use_pretrained",
+    action="store_true",
+    help="use pretrained model",
+)
+parser.add_argument(
+    "--from_pretrained",
+    default="evaluate",
+    type=str,
+    help="options: evaluate, resume_training",
 )
 args = parser.parse_args()
 
@@ -60,19 +72,30 @@ args = parser.parse_args()
 if __name__ == "__main__":
 
     if args.model == "xgboost":
+        if args.use_pretrained:
+            sys.exit("Pre-trained models are not available for XGBoost")
         if args.use_cnn:
             warnings.warn(
                 "use_cnn flag set to true for xgboost model. xgboost will not use cnn features"
             )
         trainer = train_xgb
+        trainer.fit(args)
+        trainer.evaluate(args)
 
     else:
         if args.use_cnn:
             save_cnn_features(args)
             if args.use_augs:
                 warnings.warn("cannot perform augmentation on cnn features")
-
         trainer = train_nn
-
-    trainer.fit(args)
-    trainer.evaluate(args)
+        if args.use_pretrained:
+            if args.from_pretrained == "evaluate":
+                trainer.evaluate(args)
+                sys.exit("Evaluated from pretrained model")
+            elif args.from_pretrained == "resume_training":
+                trainer.fit(args)
+                trainer.evaluate(args)
+                sys.exit("###  Training from pretrained model complete  ###")
+        if not args.use_pretrained:
+            trainer.fit(args)
+            trainer.evaluate(args)

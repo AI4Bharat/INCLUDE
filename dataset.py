@@ -20,9 +20,12 @@ from augment import (
 
 class KeypointsDataset(data.Dataset):
     def __init__(
-        self, keypoints_path, use_augs, label_map, mode="train", max_frame_len=200
+        self, keypoints_path, use_augs, label_map, mode="train", max_frame_len=169
     ):
+        #print('###  keypoints_path = ' , keypoints_path)
         self.df = pd.read_json(keypoints_path)
+        #with open(keypoints_path) as f:
+        #    self.df = pd.DataFrame([json.loads(l) for l in f.readlines()])
         self.mode = mode
         self.use_augs = use_augs
         self.label_map = label_map

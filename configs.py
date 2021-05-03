@@ -30,7 +30,7 @@ class XgbConfig:
 class TransformerConfig:
     size: str
     input_size: int = 134
-    max_position_embeddings: int = field(default=256, repr=False)
+    max_position_embeddings: int = field(default=169, repr=False)
     layer_norm_eps: float = field(default=1e-12, repr=False)
     hidden_dropout_prob: float = field(default=0.1, repr=False)
     hidden_size: int = field(default=512, repr=False)
