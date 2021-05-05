@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     if args.model == "xgboost":
         if args.use_pretrained:
-            sys.exit("Pre-trained models are not available for XGBoost")
+            raise Exception("Pre-trained models are not available for XGBoost")
         if args.use_cnn:
             warnings.warn(
                 "use_cnn flag set to true for xgboost model. xgboost will not use cnn features"
@@ -91,11 +91,11 @@ if __name__ == "__main__":
         if args.use_pretrained:
             if args.from_pretrained == "evaluate":
                 trainer.evaluate(args)
-                sys.exit("Evaluated from pretrained model")
+                print("###  Evaluated from pretrained model  ###")
             elif args.from_pretrained == "resume_training":
                 trainer.fit(args)
                 trainer.evaluate(args)
-                sys.exit("###  Training from pretrained model complete  ###")
+                print("###  Training from pretrained model complete  ###")
         if not args.use_pretrained:
             trainer.fit(args)
             trainer.evaluate(args)

@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 
 import torch
 import torch.nn.functional as F
@@ -19,6 +20,9 @@ from utils import (
 from dataset import KeypointsDataset, FeaturesDatset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+with open("pretrained_links.json") as f:
+    pretrainedModelLinks = json.load(f)
 
 
 def train(dataloader, model, optimizer, device):
@@ -85,6 +89,41 @@ def validate(dataloader, model, device):
     return loss_avg, accuracy_avg
 
 
+def load_pretrained(args):
+    n_classes = 50
+    if args.dataset == "include":
+        n_classes = 263
+    if args.model == "lstm":
+        config = LstmConfig()
+        if args.use_cnn:
+            config.input_size = CnnConfig.output_dim
+        model = LSTM(config=config, n_classes=n_classes)
+    else:
+        config = TransformerConfig(
+            size=args.transformer_size, max_position_embeddings=169
+        )
+        if args.use_cnn:
+            config.input_size = CnnConfig.output_dim
+        model = Transformer(config=config, n_classes=n_classes)
+    model = model.to(device)
+
+    load_modelName = args.dataset
+    if args.use_cnn:
+        load_modelName += "_useCNN"
+    else:
+        load_modelName += "_noCNN"
+    if args.model == "lstm":
+        load_modelName += "_lstm.pth"
+    elif args.model == "transformer":
+        load_modelName += "_transformer.pth"
+
+    if not os.path.isfile(load_modelName):
+        link = pretrainedModelLinks[load_modelName]
+        torch.hub.download_url_to_file(link, load_modelName, progress=True)
+    ckpt = torch.load(load_modelName)
+    return ckpt, model
+
+
 def fit(args):
     exp_name = get_experiment_name(args)
     logging_path = os.path.join(args.save_path, exp_name) + ".log"
@@ -112,6 +151,7 @@ def fit(args):
             use_augs=args.use_augs,
             label_map=label_map,
             mode="train",
+            max_frame_len=169,
         )
         val_dataset = KeypointsDataset(
             keypoints_path=os.path.join(
@@ -120,6 +160,7 @@ def fit(args):
             use_augs=False,
             label_map=label_map,
             mode="val",
+            max_frame_len=169,
         )
 
     train_dataloader = data.DataLoader(
@@ -153,66 +194,12 @@ def fit(args):
         model = Transformer(config=config, n_classes=n_classes)
 
     model = model.to(device)
-    '''
-    param_optimizer = list(model.named_parameters())
-    no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
-
-    optimizer_parameters = [
-        {
-            "params": [
-                p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": 0.01,
-        },
-        {
-            "params": [
-                p for n, p in param_optimizer if any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": 0.0,
-        },
-    ]
-    optimizer = torch.optim.AdamW(optimizer_parameters, lr=args.learning_rate)
-    '''
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.01)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                    optimizer, mode="max", patience=15, verbose=True
-                        )
 
     if args.use_pretrained and args.from_pretrained == "resume_training":
-        if args.use_cnn:
-            saved_model_path = "useCNN"
-        else:
-            saved_model_path = "noCNN"
-        if args.model == "lstm":
-            saved_model_path += "_lstm.pth"
-        elif args.model == "transformer":
-            saved_model_path += "_transformer.pth"
-
-        print(saved_model_path)
-
-        savedModelLinks_include = {
-            "useCNN_lstm.pth": "link",
-            "useCNN_transformer.pth": "link",
-            "noCNN_lstm.pth": "link",
-            "noCNN_transformer.pth": "https://api.wandb.ai/files/abdur-ai4bharat/isl_transformers/2oqmaw0d/model.pth",
-        }
-
-        savedModelLinks_include50 = {
-            "useCNN_lstm.pth": "link",
-            "useCNN_transformer.pth": "link",
-            "noCNN_lstm.pth": "link",
-            "noCNN_transformer.pth": "link",
-        }
-
-        if not os.path.isfile(saved_model_path):
-            if args.dataset == "include":
-                link = savedModelLinks_include[saved_model_path]
-            else:
-                link = savedModelLinks_include50[saved_model_path]
-            torch.hub.download_url_to_file(link, saved_model_path, progress=True)
-        ckpt = torch.load(saved_model_path)
+        ckpt, model = load_pretrained(args)
         model.load_state_dict(ckpt["model"])
-        optimizer.load_state_dict(ckpt['optimizer'])
+        optimizer.load_state_dict(ckpt["optimizer"])
 
     model_path = os.path.join(args.save_path, exp_name) + ".pth"
     es = EarlyStopping(patience=15, mode="max")
@@ -259,6 +246,7 @@ def evaluate(args):
             use_augs=False,
             label_map=label_map,
             mode="test",
+            max_frame_len=169,
         )
 
     dataloader = data.DataLoader(
@@ -283,38 +271,7 @@ def evaluate(args):
     model = model.to(device)
 
     if args.use_pretrained and args.from_pretrained == "evaluate":
-        if args.use_cnn:
-            model_path = "useCNN"
-        else:
-            model_path = "noCNN"
-        if args.model == "lstm":
-            model_path += "_lstm.pth"
-        elif args.model == "transformer":
-            model_path += "_transformer.pth"
-
-        print(model_path)
-
-        savedModelLinks_include = {
-            "useCNN_lstm.pth": "link",
-            "useCNN_transformer.pth": "link",
-            "noCNN_lstm.pth": "link",
-            "noCNN_transformer.pth": "https://api.wandb.ai/files/abdur-ai4bharat/isl_transformers/2oqmaw0d/model.pth",
-        }
-
-        savedModelLinks_include50 = {
-            "useCNN_lstm.pth": "link",
-            "useCNN_transformer.pth": "link",
-            "noCNN_lstm.pth": "link",
-            "noCNN_transformer.pth": "https://api.wandb.ai/files/abdur-ai4bharat/isl_transformers/pnitdp3d/model.pth",
-        }
-
-        if not os.path.isfile(model_path):
-            if args.dataset == "include":
-                link = savedModelLinks_include[model_path]
-            else:
-                link = savedModelLinks_include50[model_path]
-            torch.hub.download_url_to_file(link, model_path, progress=True)
-        ckpt = torch.load(model_path)
+        ckpt, model = load_pretrained(args)
         model.load_state_dict(ckpt["model"])
         print("### Model loaded ###")
 
