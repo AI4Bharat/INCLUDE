@@ -22,7 +22,7 @@ from dataset import KeypointsDataset, FeaturesDatset
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 with open("pretrained_links.json") as f:
-    pretrainedModelLinks = json.load(f)
+    pretrained_model_links = json.load(f)
 
 
 def train(dataloader, model, optimizer, device):
@@ -89,6 +89,33 @@ def validate(dataloader, model, device):
     return loss_avg, accuracy_avg
 
 
+def change_max_pos_embd(args, new_mpe_size):
+    n_classes = 50
+    if args.dataset == "include":
+        n_classes = 263
+    config = TransformerConfig(
+        size=args.transformer_size, max_position_embeddings=new_mpe_size
+    )
+    if args.use_cnn:
+        config.input_size = CnnConfig.output_dim
+    model = Transformer(config=config, n_classes=n_classes)
+    model = model.to(device)
+    return model
+
+
+def pretrained_name(args):
+    load_modelName = args.dataset
+    if args.use_cnn:
+        load_modelName += "_use_cnn"
+    else:
+        load_modelName += "_no_cnn"
+    if args.model == "lstm":
+        load_modelName += "_lstm.pth"
+    elif args.model == "transformer":
+        load_modelName += "_transformer.pth"
+    return load_modelName
+
+
 def load_pretrained(args):
     n_classes = 50
     if args.dataset == "include":
@@ -99,29 +126,21 @@ def load_pretrained(args):
             config.input_size = CnnConfig.output_dim
         model = LSTM(config=config, n_classes=n_classes)
     else:
-        config = TransformerConfig(
-            size=args.transformer_size, max_position_embeddings=169
-        )
-        if args.use_cnn:
-            config.input_size = CnnConfig.output_dim
-        model = Transformer(config=config, n_classes=n_classes)
+        model = change_max_pos_embd(args, new_mpe_size=169)
     model = model.to(device)
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.learning_rate, weight_decay=0.01
+    )
 
-    load_modelName = args.dataset
-    if args.use_cnn:
-        load_modelName += "_useCNN"
-    else:
-        load_modelName += "_noCNN"
-    if args.model == "lstm":
-        load_modelName += "_lstm.pth"
-    elif args.model == "transformer":
-        load_modelName += "_transformer.pth"
+    load_modelName = pretrained_name(args)
 
     if not os.path.isfile(load_modelName):
-        link = pretrainedModelLinks[load_modelName]
+        link = pretrained_model_links[load_modelName]
         torch.hub.download_url_to_file(link, load_modelName, progress=True)
     ckpt = torch.load(load_modelName)
-    return ckpt, model
+    model.load_state_dict(ckpt["model"])
+    optimizer.load_state_dict(ckpt["optimizer"])
+    return model, optimizer
 
 
 def fit(args):
@@ -194,12 +213,12 @@ def fit(args):
         model = Transformer(config=config, n_classes=n_classes)
 
     model = model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.learning_rate, weight_decay=0.01
+    )
 
-    if args.use_pretrained and args.from_pretrained == "resume_training":
-        ckpt, model = load_pretrained(args)
-        model.load_state_dict(ckpt["model"])
-        optimizer.load_state_dict(ckpt["optimizer"])
+    if args.use_pretrained == "resume_training":
+        model, optimizer = load_pretrained(args)
 
     model_path = os.path.join(args.save_path, exp_name) + ".pth"
     es = EarlyStopping(patience=15, mode="max")
@@ -270,9 +289,8 @@ def evaluate(args):
 
     model = model.to(device)
 
-    if args.use_pretrained and args.from_pretrained == "evaluate":
-        ckpt, model = load_pretrained(args)
-        model.load_state_dict(ckpt["model"])
+    if args.use_pretrained:
+        model, optimizer = load_pretrained(args)
         print("### Model loaded ###")
 
     else:
