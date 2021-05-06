@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 from models import CNN
 from configs import CnnConfig
 import cv2
-
+import glob
 
 def draw_hands(
     image, hand_x, hand_y, connections, connection_color, thickness, point_color
@@ -104,7 +104,9 @@ def cnn_feat(video_record, save_dir):
     ]
 
     model = CNN(CnnConfig)
-    features = []
+    features = np.empty((0,1280))
+
+    assert video_record["n_frames"] > 0, "Number of frames should be greater than zero"
     for i in range(video_record["n_frames"]):
         image = np.zeros((1080, 1920, 3), np.uint8)
         pose_x = video_record["pose_x"][i]
@@ -139,14 +141,12 @@ def cnn_feat(video_record, save_dir):
         image = draw_pose(
             image, pose_x, pose_y, links, CONNECTION_COLOR, THICKNESS, POINT_COLOR
         )
-
         image = image.astype(np.float32) / 255
         image = cv2.resize(image, (224, 224))
         feat = model(torch.FloatTensor(image).permute(2, 0, 1).unsqueeze(0))
-        features.append(feat.numpy())
+        features = np.vstack([features, feat.numpy()])
 
-    features = np.array(features)
-    save_path = os.path.join(save_dir, video_record.uid, ".npy")
+    save_path = os.path.join(save_dir, video_record["uid"]+".npy")
     np.save(save_path, features)
 
 
@@ -160,11 +160,13 @@ def runner(args, mode):
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
 
-    n_cores = multiprocessing.cpu_count()
-    Parallel(n_jobs=n_cores, backend="multiprocessing")(
-        delayed(cnn_feat)(record, save_dir)
-        for record in tqdm(data, desc=f"Saving CNN features - {mode} files")
-    )
+    files = sorted(glob.glob(os.path.join(save_dir, "*.npy")))
+    if(len(files) != len(data)):
+        for record in tqdm(data, desc=f"Saving CNN features - {mode} files"):
+        cnn_feat(record, save_dir)
+    else:
+        print(mode, "CNN features already exist!")
+        return
 
 
 def save_cnn_features(args):

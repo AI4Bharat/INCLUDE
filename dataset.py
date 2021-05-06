@@ -119,15 +119,21 @@ class KeypointsDataset(data.Dataset):
 
 
 class FeaturesDatset(data.Dataset):
-    def __init__(self, features_dir, label_map, mode="train"):
+    def __init__(self, features_dir, label_map, mode="train", max_frame_len=200):
         self.features_dir = features_dir
         self.file_paths = sorted(glob.glob(os.path.join(features_dir, "*.npy")))
         self.label_map = label_map
         self.mode = mode
+        self.max_frame_len = max_frame_len
 
     def __getitem__(self, i):
         file_path = self.file_paths[i]
         data = np.load(file_path)
+        data = np.pad(
+            data,
+            ((0, self.max_frame_len - data.shape[0]), (0, 0)),
+            "constant",
+        )
         label = os.path.basename(file_path).split("_")[0]
         return {
             "uid": os.path.basename(file_path).split(".")[0],
