@@ -28,7 +28,6 @@ def load_json(path):
     return json_file
 
 
-pretrained_model_links = load_json("pretrained_links.json")
 
 
 def train(dataloader, model, optimizer, device):
@@ -121,6 +120,8 @@ def pretrained_name(args):
 
 def load_pretrained(args, n_classes, model, optimizer=None):
     load_modelName = pretrained_name(args)
+    pretrained_model_links = load_json("pretrained_links.json")
+
     if not os.path.isfile(load_modelName):
         link = pretrained_model_links[load_modelName]
         torch.hub.download_url_to_file(link, load_modelName, progress=True)

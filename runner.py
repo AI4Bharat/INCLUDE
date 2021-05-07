@@ -82,10 +82,7 @@ if __name__ == "__main__":
         if args.use_pretrained == "evaluate":
             train_nn.evaluate(args)
             print("###  Evaluated from pretrained model  ###")
-        elif args.use_pretrained == "resume_training":
-            train_nn.fit(args)
-            train_nn.evaluate(args)
-            print("###  Training from pretrained model complete  ###")
-        if not args.use_pretrained:
+        else:
+            print("### Starting to train.  ###")
             train_nn.fit(args)
             train_nn.evaluate(args)
