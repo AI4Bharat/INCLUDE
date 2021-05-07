@@ -92,7 +92,7 @@ def process_video(path):
     uid = os.path.splitext(os.path.basename(path))[0]
     uid = "_".join([label, uid])
     n_frames = 0
-    assert os.path.isfile(path), path+" file not found"
+    assert os.path.isfile(path), path + " file not found"
     cap = cv2.VideoCapture(path)
     while cap.isOpened():
         ret, image = cap.read()
@@ -143,7 +143,7 @@ def process_video(path):
         n_frames += 1
 
     cap.release()
-    assert n_frames!=0, "Number of frames shouldn't be zero"
+    assert n_frames != 0, "Number of frames shouldn't be zero"
     ## Unable to open video
     pose_points_x = pose_points_x if pose_points_x else [[0.0] * 25]
     pose_points_y = pose_points_y if pose_points_y else [[0.0] * 25]

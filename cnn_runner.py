@@ -12,6 +12,7 @@ from configs import CnnConfig
 import cv2
 import glob
 
+
 def draw_hands(
     image, hand_x, hand_y, connections, connection_color, thickness, point_color
 ):
@@ -104,7 +105,7 @@ def cnn_feat(video_record, save_dir):
     ]
 
     model = CNN(CnnConfig)
-    features = np.empty((0,1280))
+    features = np.empty((0, CnnConfig.output_dim))
 
     assert video_record["n_frames"] > 0, "Number of frames should be greater than zero"
     for i in range(video_record["n_frames"]):
@@ -146,7 +147,7 @@ def cnn_feat(video_record, save_dir):
         feat = model(torch.FloatTensor(image).permute(2, 0, 1).unsqueeze(0))
         features = np.vstack([features, feat.numpy()])
 
-    save_path = os.path.join(save_dir, video_record["uid"]+".npy")
+    save_path = os.path.join(save_dir, video_record["uid"] + ".npy")
     np.save(save_path, features)
 
 
@@ -161,9 +162,12 @@ def runner(args, mode):
         os.mkdir(save_dir)
 
     files = sorted(glob.glob(os.path.join(save_dir, "*.npy")))
-    if(len(files) != len(data)):
-        for record in tqdm(data, desc=f"Saving CNN features - {mode} files"):
-        cnn_feat(record, save_dir)
+    if len(files) != len(data):
+        n_cores = multiprocessing.cpu_count()
+        Parallel(n_jobs=n_cores, backend="multiprocessing")(
+            delayed(cnn_feat)(record, save_dir)
+            for record in tqdm(data, desc=f"Saving CNN features - {mode} files")
+        )
     else:
         print(mode, "CNN features already exist!")
         return
