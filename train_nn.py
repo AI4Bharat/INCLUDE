@@ -16,18 +16,11 @@ from utils import (
     EarlyStopping,
     load_label_map,
     get_experiment_name,
+    load_json,
 )
 from dataset import KeypointsDataset, FeaturesDatset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def load_json(path):
-    with open(path) as f:
-        json_file = json.load(f)
-    return json_file
-
-
 
 
 def train(dataloader, model, optimizer, device):
@@ -283,7 +276,7 @@ def evaluate(args):
     model = model.to(device)
 
     if args.use_pretrained == "evaluate":
-        model, optimizer = load_pretrained(args, n_classes, model)
+        model, _ = load_pretrained(args, n_classes, model)
         print("### Model loaded ###")
 
     else:

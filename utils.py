@@ -14,11 +14,15 @@ def seed_everything(seed):
     os.environ["PYTHONHASHSEED"] = str(seed)
 
 
+def load_json(path):
+    with open(path, "r") as f:
+        json_file = json.load(f)
+    return json_file
+
+
 def load_label_map(dataset):
     file_path = f"label_maps/label_map_{dataset}.json"
-    with open(file_path, "r") as fp:
-        label_map = json.load(fp)
-    return label_map
+    return load_json(file_path)
 
 
 def get_experiment_name(args):
