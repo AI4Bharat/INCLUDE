@@ -21,8 +21,14 @@ from dataset import KeypointsDataset, FeaturesDatset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-with open("pretrained_links.json") as f:
-    pretrained_model_links = json.load(f)
+
+def load_json(path):
+    with open(path) as f:
+        json_file = json.load(f)
+    return json_file
+
+
+pretrained_model_links = load_json("pretrained_links.json")
 
 
 def train(dataloader, model, optimizer, device):
@@ -89,10 +95,7 @@ def validate(dataloader, model, device):
     return loss_avg, accuracy_avg
 
 
-def change_max_pos_embd(args, new_mpe_size):
-    n_classes = 50
-    if args.dataset == "include":
-        n_classes = 263
+def change_max_pos_embd(args, new_mpe_size, n_classes):
     config = TransformerConfig(
         size=args.transformer_size, max_position_embeddings=new_mpe_size
     )
@@ -116,30 +119,19 @@ def pretrained_name(args):
     return load_modelName
 
 
-def load_pretrained(args):
-    n_classes = 50
-    if args.dataset == "include":
-        n_classes = 263
-    if args.model == "lstm":
-        config = LstmConfig()
-        if args.use_cnn:
-            config.input_size = CnnConfig.output_dim
-        model = LSTM(config=config, n_classes=n_classes)
-    else:
-        model = change_max_pos_embd(args, new_mpe_size=169)
-    model = model.to(device)
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=args.learning_rate, weight_decay=0.01
-    )
-
+def load_pretrained(args, n_classes, model, optimizer=None):
     load_modelName = pretrained_name(args)
-
     if not os.path.isfile(load_modelName):
         link = pretrained_model_links[load_modelName]
         torch.hub.download_url_to_file(link, load_modelName, progress=True)
+
+    if args.model == "transformer":
+        model = change_max_pos_embd(args, new_mpe_size=169, n_classes=n_classes)
+
     ckpt = torch.load(load_modelName)
     model.load_state_dict(ckpt["model"])
-    optimizer.load_state_dict(ckpt["optimizer"])
+    if args.use_pretrained == "resume_training":
+        optimizer.load_state_dict(ckpt["optimizer"])
     return model, optimizer
 
 
@@ -218,7 +210,7 @@ def fit(args):
     )
 
     if args.use_pretrained == "resume_training":
-        model, optimizer = load_pretrained(args)
+        model, optimizer = load_pretrained(args, n_classes, model, optimizer)
 
     model_path = os.path.join(args.save_path, exp_name) + ".pth"
     es = EarlyStopping(patience=15, mode="max")
@@ -289,8 +281,8 @@ def evaluate(args):
 
     model = model.to(device)
 
-    if args.use_pretrained:
-        model, optimizer = load_pretrained(args)
+    if args.use_pretrained == "evaluate":
+        model, optimizer = load_pretrained(args, n_classes, model)
         print("### Model loaded ###")
 
     else:
