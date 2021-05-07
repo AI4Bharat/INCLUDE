@@ -47,12 +47,17 @@ parser.add_argument(
 parser.add_argument("--batch_size", default=128, type=int, help="batch size of data")
 parser.add_argument(
     "--learning_rate",
-    default=1e-3,
+    default=1e-2,
     type=float,
     help="learning rate for training neural net",
 )
 parser.add_argument(
     "--transformer_size", default="small", type=str, help="options: small, large"
+)
+parser.add_argument(
+    "--use_pretrained",
+    default=None,
+    help="use pretrained model. options: evaluate, resume_training",
 )
 args = parser.parse_args()
 
@@ -60,19 +65,24 @@ args = parser.parse_args()
 if __name__ == "__main__":
 
     if args.model == "xgboost":
+        if args.use_pretrained:
+            raise Exception("Pre-trained models are not available for XGBoost")
         if args.use_cnn:
             warnings.warn(
                 "use_cnn flag set to true for xgboost model. xgboost will not use cnn features"
             )
-        trainer = train_xgb
+        train_xgb.fit(args)
+        train_xgb.evaluate(args)
 
     else:
         if args.use_cnn:
             save_cnn_features(args)
             if args.use_augs:
                 warnings.warn("cannot perform augmentation on cnn features")
-
-        trainer = train_nn
-
-    trainer.fit(args)
-    trainer.evaluate(args)
+        if args.use_pretrained == "evaluate":
+            train_nn.evaluate(args)
+            print("###  Evaluated from pretrained model  ###")
+        else:
+            print("### Starting to train.  ###")
+            train_nn.fit(args)
+            train_nn.evaluate(args)

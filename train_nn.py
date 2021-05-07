@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 
 import torch
 import torch.nn.functional as F
@@ -15,6 +16,7 @@ from utils import (
     EarlyStopping,
     load_label_map,
     get_experiment_name,
+    load_json,
 )
 from dataset import KeypointsDataset, FeaturesDatset
 
@@ -85,6 +87,48 @@ def validate(dataloader, model, device):
     return loss_avg, accuracy_avg
 
 
+def change_max_pos_embd(args, new_mpe_size, n_classes):
+    config = TransformerConfig(
+        size=args.transformer_size, max_position_embeddings=new_mpe_size
+    )
+    if args.use_cnn:
+        config.input_size = CnnConfig.output_dim
+    model = Transformer(config=config, n_classes=n_classes)
+    model = model.to(device)
+    return model
+
+
+def pretrained_name(args):
+    load_modelName = args.dataset
+    if args.use_cnn:
+        load_modelName += "_use_cnn"
+    else:
+        load_modelName += "_no_cnn"
+    if args.model == "lstm":
+        load_modelName += "_lstm.pth"
+    elif args.model == "transformer":
+        load_modelName += "_transformer.pth"
+    return load_modelName
+
+
+def load_pretrained(args, n_classes, model, optimizer=None):
+    load_modelName = pretrained_name(args)
+    pretrained_model_links = load_json("pretrained_links.json")
+
+    if not os.path.isfile(load_modelName):
+        link = pretrained_model_links[load_modelName]
+        torch.hub.download_url_to_file(link, load_modelName, progress=True)
+
+    if args.model == "transformer":
+        model = change_max_pos_embd(args, new_mpe_size=169, n_classes=n_classes)
+
+    ckpt = torch.load(load_modelName)
+    model.load_state_dict(ckpt["model"])
+    if args.use_pretrained == "resume_training":
+        optimizer.load_state_dict(ckpt["optimizer"])
+    return model, optimizer
+
+
 def fit(args):
     exp_name = get_experiment_name(args)
     logging_path = os.path.join(args.save_path, exp_name) + ".log"
@@ -112,6 +156,7 @@ def fit(args):
             use_augs=args.use_augs,
             label_map=label_map,
             mode="train",
+            max_frame_len=169,
         )
         val_dataset = KeypointsDataset(
             keypoints_path=os.path.join(
@@ -120,6 +165,7 @@ def fit(args):
             use_augs=False,
             label_map=label_map,
             mode="val",
+            max_frame_len=169,
         )
 
     train_dataloader = data.DataLoader(
@@ -153,27 +199,15 @@ def fit(args):
         model = Transformer(config=config, n_classes=n_classes)
 
     model = model.to(device)
-    param_optimizer = list(model.named_parameters())
-    no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.learning_rate, weight_decay=0.01
+    )
 
-    optimizer_parameters = [
-        {
-            "params": [
-                p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": 0.01,
-        },
-        {
-            "params": [
-                p for n, p in param_optimizer if any(nd in n for nd in no_decay)
-            ],
-            "weight_decay": 0.0,
-        },
-    ]
-    optimizer = torch.optim.AdamW(optimizer_parameters, lr=args.learning_rate)
+    if args.use_pretrained == "resume_training":
+        model, optimizer = load_pretrained(args, n_classes, model, optimizer)
 
     model_path = os.path.join(args.save_path, exp_name) + ".pth"
-    es = EarlyStopping(patience=5, mode="max")
+    es = EarlyStopping(patience=15, mode="max")
     for epoch in range(args.epochs):
         print(f"Epoch: {epoch+1}/{args.epochs}")
         train_loss, train_acc = train(train_dataloader, model, optimizer, device)
@@ -217,6 +251,7 @@ def evaluate(args):
             use_augs=False,
             label_map=label_map,
             mode="test",
+            max_frame_len=169,
         )
 
     dataloader = data.DataLoader(
@@ -240,11 +275,16 @@ def evaluate(args):
 
     model = model.to(device)
 
-    exp_name = get_experiment_name(args)
-    model_path = os.path.join(args.save_path, exp_name) + ".pth"
-    ckpt = torch.load(model_path)
-    model.load_state_dict(ckpt["model"])
-    print("### Model loaded ###")
+    if args.use_pretrained == "evaluate":
+        model, _ = load_pretrained(args, n_classes, model)
+        print("### Model loaded ###")
+
+    else:
+        exp_name = get_experiment_name(args)
+        model_path = os.path.join(args.save_path, exp_name) + ".pth"
+        ckpt = torch.load(model_path)
+        model.load_state_dict(ckpt["model"])
+        print("### Model loaded ###")
 
     test_loss, test_acc = validate(dataloader, model, device)
     print("Evaluation Results:")
