@@ -55,7 +55,7 @@ class TransformerConfig:
 
 @dataclass
 class CnnConfig:
-    model: str = "mobilenetv2_100"
+    model: str = "mobilenetv3_rw"
     output_dim: int = 1280
 
     def __post_init__(self):
