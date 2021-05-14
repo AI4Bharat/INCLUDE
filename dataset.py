@@ -20,22 +20,29 @@ from augment import (
 
 class KeypointsDataset(data.Dataset):
     def __init__(
-        self, keypoints_path, use_augs, label_map, mode="train", max_frame_len=200
+        self,
+        keypoints_dir,
+        use_augs,
+        label_map,
+        mode="train",
+        max_frame_len=200,
+        frame_length=1080,
+        frame_width=1920,
     ):
-        self.df = pd.read_json(keypoints_path)
+        self.files = sorted(glob.glob(os.path.join(keypoints_dir, "*.json")))
         self.mode = mode
         self.use_augs = use_augs
         self.label_map = label_map
         self.max_frame_len = max_frame_len
-        self.augs = None
+        self.frame_length = frame_length
+        self.frame_width = frame_width
 
-        if mode == "train" and use_augs:
-            self.augs = [
-                Augmentation(OneOf(plus7rotation, minus7rotation), p=0.4),
-                Augmentation(gaussSample, p=0.4),
-                Augmentation(cutout, p=0.4),
-                Augmentation(OneOf(upsample, downsample), p=0.4),
-            ]
+        self.augs = [
+            Augmentation(OneOf(plus7rotation, minus7rotation), p=0.4),
+            Augmentation(gaussSample, p=0.4),
+            Augmentation(cutout, p=0.4),
+            Augmentation(OneOf(upsample, downsample), p=0.4),
+        ]
 
     def augment(self, df):
         for aug in self.augs:
@@ -52,6 +59,14 @@ class KeypointsDataset(data.Dataset):
         arr_y = pd.DataFrame(arr_y)
         arr_y = arr_y.interpolate(method="linear", limit_direction="both").to_numpy()
 
+        if np.count_nonzero(~np.isnan(arr_x)) == 0:
+            arr_x = np.zeros(arr_x.shape)
+        if np.count_nonzero(~np.isnan(arr_y)) == 0:
+            arr_y = np.zeros(arr_y.shape)
+
+        arr_x = arr_x * self.frame_width
+        arr_y = arr_y * self.frame_length
+
         return np.stack([arr_x, arr_y], axis=-1)
 
     def combine_xy(self, x, y):
@@ -62,7 +77,8 @@ class KeypointsDataset(data.Dataset):
         return np.concatenate((x, y), -1).astype(np.float32)
 
     def __getitem__(self, idx):
-        row = self.df.iloc[idx]
+        file_path = self.files[idx]
+        row = pd.read_json(file_path, typ="series")
         label = row.label
         label = "".join([i for i in label if i.isalpha()]).lower()
 
@@ -115,7 +131,7 @@ class KeypointsDataset(data.Dataset):
         }
 
     def __len__(self):
-        return len(self.df)
+        return len(self.files)
 
 
 class FeaturesDatset(data.Dataset):

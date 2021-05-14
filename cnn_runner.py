@@ -1,26 +1,42 @@
 import os
 import json
-import multiprocessing
 
-from joblib import Parallel, delayed
 import numpy as np
 import torch
 from tqdm.auto import tqdm
 
 from models import CNN
 from configs import CnnConfig
+from utils import load_json
 import cv2
 import glob
 
 
+def replace_nan(x, y):
+    x = 0.0 if np.isnan(x) else x
+    y = 0.0 if np.isnan(y) else y
+    return x, y
+
+
 def draw_hands(
-    image, hand_x, hand_y, connections, connection_color, thickness, point_color
+    image,
+    hand_x,
+    hand_y,
+    connections,
+    connection_color,
+    thickness,
+    point_color,
+    frame_length,
+    frame_width,
 ):
     for connection in connections:
-        x0 = hand_x[connection[0]]
-        y0 = hand_y[connection[0]]
-        x1 = hand_x[connection[1]]
-        y1 = hand_y[connection[1]]
+        x0 = hand_x[connection[0]] * frame_width
+        y0 = hand_y[connection[0]] * frame_length
+        x1 = hand_x[connection[1]] * frame_width
+        y1 = hand_y[connection[1]] * frame_length
+
+        x0, y0 = replace_nan(x0, y0)
+        x1, y1 = replace_nan(x1, y1)
 
         cv2.line(
             image,
@@ -31,17 +47,31 @@ def draw_hands(
         )
 
     for x, y in zip(hand_x, hand_y):
+        x, y = replace_nan(x, y)
         cv2.circle(image, (int(x), int(y)), thickness, point_color, thickness)
 
     return image
 
 
-def draw_pose(image, pose_x, pose_y, links, connection_color, thickness, point_color):
+def draw_pose(
+    image,
+    pose_x,
+    pose_y,
+    links,
+    connection_color,
+    thickness,
+    point_color,
+    frame_length,
+    frame_width,
+):
     for link in links:
-        x0 = pose_x[link[0]]
-        y0 = pose_y[link[0]]
-        x1 = pose_x[link[1]]
-        y1 = pose_y[link[1]]
+        x0 = pose_x[link[0]] * frame_width
+        y0 = pose_y[link[0]] * frame_length
+        x1 = pose_x[link[1]] * frame_width
+        y1 = pose_y[link[1]] * frame_length
+
+        x0, y0 = replace_nan(x0, y0)
+        x1, y1 = replace_nan(x1, y1)
 
         cv2.line(
             image,
@@ -56,7 +86,11 @@ def draw_pose(image, pose_x, pose_y, links, connection_color, thickness, point_c
     return image
 
 
-def cnn_feat(video_record, save_dir):
+def cnn_feat(file_path, save_dir):
+    video_record = load_json(file_path)
+
+    FRAME_LENGTH = 1080
+    FRAME_WIDTH = 1920
     POINT_COLOR = (255, 0, 0)
     CONNECTION_COLOR = (0, 255, 0)
     THICKNESS = 2
@@ -109,7 +143,7 @@ def cnn_feat(video_record, save_dir):
 
     assert video_record["n_frames"] > 0, "Number of frames should be greater than zero"
     for i in range(video_record["n_frames"]):
-        image = np.zeros((1080, 1920, 3), np.uint8)
+        image = np.zeros((FRAME_LENGTH, FRAME_WIDTH, 3), np.uint8)
         pose_x = video_record["pose_x"][i]
         pose_y = video_record["pose_y"][i]
         hand1_x = video_record["hand1_x"][i]
@@ -126,6 +160,8 @@ def cnn_feat(video_record, save_dir):
                 CONNECTION_COLOR,
                 THICKNESS,
                 POINT_COLOR,
+                FRAME_LENGTH,
+                FRAME_WIDTH,
             )
 
         if hand2_x[0] != 0:
@@ -137,10 +173,20 @@ def cnn_feat(video_record, save_dir):
                 CONNECTION_COLOR,
                 THICKNESS,
                 POINT_COLOR,
+                FRAME_LENGTH,
+                FRAME_WIDTH,
             )
 
         image = draw_pose(
-            image, pose_x, pose_y, links, CONNECTION_COLOR, THICKNESS, POINT_COLOR
+            image,
+            pose_x,
+            pose_y,
+            links,
+            CONNECTION_COLOR,
+            THICKNESS,
+            POINT_COLOR,
+            FRAME_LENGTH,
+            FRAME_WIDTH,
         )
         image = image.astype(np.float32) / 255
         image = cv2.resize(image, (224, 224))
@@ -152,25 +198,22 @@ def cnn_feat(video_record, save_dir):
 
 
 def runner(args, mode):
-    with open(
-        os.path.join(args.data_dir, f"{args.dataset}_{mode}_keypoints.json"), "r"
-    ) as fp:
-        data = json.load(fp)
+    json_files = sorted(
+        glob.glob(
+            os.path.join(args.data_dir, f"{args.dataset}_{mode}_keypoints", "*.json")
+        )
+    )
 
     save_dir = os.path.join(args.data_dir, f"{args.dataset}_{mode}_features")
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
 
-    files = sorted(glob.glob(os.path.join(save_dir, "*.npy")))
-    if len(files) != len(data):
-        n_cores = multiprocessing.cpu_count()
-        Parallel(n_jobs=n_cores, backend="multiprocessing")(
-            delayed(cnn_feat)(record, save_dir)
-            for record in tqdm(data, desc=f"Saving CNN features - {mode} files")
-        )
+    saved_files = glob.glob(os.path.join(save_dir, "*.npy"))
+    if len(saved_files) != len(json_files):
+        for file_path in tqdm(json_files, desc=f"Saving CNN features - {mode} files"):
+            cnn_feat(file_path, save_dir)
     else:
         print(mode, "CNN features already exist!")
-        return
 
 
 def save_cnn_features(args):

@@ -7,6 +7,8 @@ import cv2
 import mediapipe as mp
 from tqdm.auto import tqdm
 from joblib import Parallel, delayed
+import numpy as np
+import gc
 
 parser = argparse.ArgumentParser(description="Generate keypoints from Mediapipe")
 parser.add_argument(
@@ -75,7 +77,7 @@ def swap_hands(left_wrist, right_wrist, hand, input_hand):
     return False
 
 
-def process_video(path):
+def process_video(path, save_dir):
     hands = mp.solutions.hands.Hands(
         min_detection_confidence=0.5, min_tracking_confidence=0.5
     )
@@ -125,13 +127,14 @@ def process_video(path):
             ):
                 hand1_x, hand1_y, hand2_x, hand2_y = hand2_x, hand2_y, hand1_x, hand1_y
 
-        pose_x = pose_x if pose_x else [0.0] * 25
-        pose_y = pose_y if pose_y else [0.0] * 25
+        ## Set to nan so that values can be interpolated in dataloader
+        pose_x = pose_x if pose_x else [np.nan] * 25
+        pose_y = pose_y if pose_y else [np.nan] * 25
 
-        hand1_x = hand1_x if hand1_x else [0.0] * 21
-        hand1_y = hand1_y if hand1_y else [0.0] * 21
-        hand2_x = hand2_x if hand2_x else [0.0] * 21
-        hand2_y = hand2_y if hand2_y else [0.0] * 21
+        hand1_x = hand1_x if hand1_x else [np.nan] * 21
+        hand1_y = hand1_y if hand1_y else [np.nan] * 21
+        hand2_x = hand2_x if hand2_x else [np.nan] * 21
+        hand2_y = hand2_y if hand2_y else [np.nan] * 21
 
         pose_points_x.append(pose_x)
         pose_points_y.append(pose_y)
@@ -143,17 +146,17 @@ def process_video(path):
         n_frames += 1
 
     cap.release()
-    assert n_frames != 0, "Number of frames shouldn't be zero"
-    ## Unable to open video
-    pose_points_x = pose_points_x if pose_points_x else [[0.0] * 25]
-    pose_points_y = pose_points_y if pose_points_y else [[0.0] * 25]
 
-    hand1_points_x = hand1_points_x if hand1_points_x else [[0.0] * 21]
-    hand1_points_y = hand1_points_y if hand1_points_y else [[0.0] * 21]
-    hand2_points_x = hand2_points_x if hand2_points_x else [[0.0] * 21]
-    hand2_points_y = hand2_points_y if hand2_points_y else [[0.0] * 21]
+    ## Set to nan so that values can be interpolated in dataloader
+    pose_points_x = pose_points_x if pose_points_x else [[np.nan] * 25]
+    pose_points_y = pose_points_y if pose_points_y else [[np.nan] * 25]
 
-    return {
+    hand1_points_x = hand1_points_x if hand1_points_x else [[np.nan] * 21]
+    hand1_points_y = hand1_points_y if hand1_points_y else [[np.nan] * 21]
+    hand2_points_x = hand2_points_x if hand2_points_x else [[np.nan] * 21]
+    hand2_points_y = hand2_points_y if hand2_points_y else [[np.nan] * 21]
+
+    save_data = {
         "uid": uid,
         "label": label,
         "pose_x": pose_points_x,
@@ -164,6 +167,13 @@ def process_video(path):
         "hand2_y": hand2_points_y,
         "n_frames": n_frames,
     }
+    with open(os.path.join(save_dir, f"{uid}.json"), "w") as f:
+        json.dump(save_data, f)
+
+    hands.close()
+    pose.close()
+    del hands, pose, save_data
+    gc.collect()
 
 
 def load_file(path, include_dir):
@@ -186,15 +196,14 @@ def load_train_test_val_paths(args):
 
 
 def save_keypoints(dataset, file_paths, mode):
-    outputs = Parallel(n_jobs=n_cores, backend="multiprocessing")(
-        delayed(process_video)(path)
+    save_dir = os.path.join(args.save_dir, f"{dataset}_{mode}_keypoints")
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+
+    Parallel(n_jobs=n_cores, backend="multiprocessing")(
+        delayed(process_video)(path, save_dir)
         for path in tqdm(file_paths, desc=f"processing {mode} videos")
     )
-
-    print(f"Saving {mode} points.....")
-    save_path = os.path.join(args.save_dir, f"{dataset}_{mode}_keypoints.json")
-    with open(save_path, "w") as f:
-        json.dump(outputs, f)
 
 
 n_cores = multiprocessing.cpu_count()

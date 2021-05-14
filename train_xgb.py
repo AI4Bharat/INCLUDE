@@ -112,13 +112,27 @@ def preprocess(df, use_augs, label_map, mode):
     return x, y
 
 
+def load_dataframe(files):
+    series = []
+    for file_path in files:
+        series.append(pd.read_json(file_path, typ="series"))
+    return pd.concat(series, axis=0)
+
+
 def fit(args):
-    train_df = pd.read_json(
-        os.path.join(args.data_dir, f"{args.dataset}_train_keypoints.json")
+    train_files = sorted(
+        glob.glob(
+            os.path.join(args.data_dir, f"{args.dataset}_train_keypoints", "*.json")
+        )
     )
-    val_df = pd.read_json(
-        os.path.join(args.data_dir, f"{args.dataset}_val_keypoints.json")
+    val_files = sorted(
+        glob.glob(
+            os.path.join(args.data_dir, f"{args.dataset}_val_keypoints", "*.json")
+        )
     )
+
+    train_df = load_dataframe(train_files)
+    val_df = load_dataframe(val_files)
 
     label_map = load_label_map(args.dataset)
     x_train, y_train = preprocess(train_df, args.use_augs, label_map, "train")
@@ -134,9 +148,13 @@ def fit(args):
 
 
 def evaluate(args):
-    test_df = pd.read_json(
-        os.path.join(args.data_dir, f"{args.dataset}_test_keypoints.json")
+    test_files = sorted(
+        glob.glob(
+            os.path.join(args.data_dir, f"{args.dataset}_test_keypoints", "*.json")
+        )
     )
+
+    test_df = load_dataframe(test_files)
 
     label_map = load_label_map(args.dataset)
     x_test, y_test = preprocess(test_df, args.use_augs, label_map, "test")

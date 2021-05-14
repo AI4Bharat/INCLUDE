@@ -111,7 +111,7 @@ def pretrained_name(args):
     return load_modelName
 
 
-def load_pretrained(args, n_classes, model, optimizer=None):
+def load_pretrained(args, n_classes, model, optimizer=None, scheduler=None):
     load_modelName = pretrained_name(args)
     pretrained_model_links = load_json("pretrained_links.json")
 
@@ -126,7 +126,9 @@ def load_pretrained(args, n_classes, model, optimizer=None):
     model.load_state_dict(ckpt["model"])
     if args.use_pretrained == "resume_training":
         optimizer.load_state_dict(ckpt["optimizer"])
-    return model, optimizer
+        scheduler.load_state_dict(ckpt["scheduler"])
+
+    return model, optimizer, scheduler
 
 
 def fit(args):
@@ -150,8 +152,8 @@ def fit(args):
 
     else:
         train_dataset = KeypointsDataset(
-            keypoints_path=os.path.join(
-                args.data_dir, f"{args.dataset}_train_keypoints.json"
+            keypoints_dir=os.path.join(
+                args.data_dir, f"{args.dataset}_train_keypoints"
             ),
             use_augs=args.use_augs,
             label_map=label_map,
@@ -159,8 +161,8 @@ def fit(args):
             max_frame_len=169,
         )
         val_dataset = KeypointsDataset(
-            keypoints_path=os.path.join(
-                args.data_dir, f"{args.dataset}_val_keypoints.json"
+            keypoints_dir=os.path.join(
+                args.data_dir, f"{args.dataset}_val_keypoints"
             ),
             use_augs=False,
             label_map=label_map,
@@ -202,9 +204,14 @@ def fit(args):
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.learning_rate, weight_decay=0.01
     )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="max", factor=0.2
+    )
 
     if args.use_pretrained == "resume_training":
-        model, optimizer = load_pretrained(args, n_classes, model, optimizer)
+        model, optimizer, scheduler = load_pretrained(
+            args, n_classes, model, optimizer, scheduler
+        )
 
     model_path = os.path.join(args.save_path, exp_name) + ".pth"
     es = EarlyStopping(patience=15, mode="max")
@@ -217,11 +224,13 @@ def fit(args):
                 epoch + 1, train_loss, train_acc, val_loss, val_acc
             )
         )
+        scheduler.step(val_acc)
         es(
             model_path=model_path,
             epoch_score=val_acc,
             model=model,
             optimizer=optimizer,
+            scheduler=scheduler,
         )
         if es.early_stop:
             print("Early stopping")
@@ -245,8 +254,8 @@ def evaluate(args):
 
     else:
         dataset = KeypointsDataset(
-            keypoints_path=os.path.join(
-                args.data_dir, f"{args.dataset}_test_keypoints.json"
+            keypoints_dir=os.path.join(
+                args.data_dir, f"{args.dataset}_test_keypoints"
             ),
             use_augs=False,
             label_map=label_map,
@@ -257,7 +266,7 @@ def evaluate(args):
     dataloader = data.DataLoader(
         dataset,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=4,
         pin_memory=True,
     )
@@ -276,7 +285,7 @@ def evaluate(args):
     model = model.to(device)
 
     if args.use_pretrained == "evaluate":
-        model, _ = load_pretrained(args, n_classes, model)
+        model, _, _ = load_pretrained(args, n_classes, model)
         print("### Model loaded ###")
 
     else:
