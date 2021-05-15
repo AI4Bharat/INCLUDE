@@ -107,7 +107,11 @@ def pretrained_name(args):
     if args.model == "lstm":
         load_modelName += "_lstm.pth"
     elif args.model == "transformer":
-        load_modelName += "_transformer.pth"
+        load_modelName += "_transformer"
+        if args.transformer_size == "large":
+            load_modelName += "_large.pth"
+        elif args.transformer_size == "small":
+            load_modelName += "_small.pth"
     return load_modelName
 
 
@@ -120,7 +124,7 @@ def load_pretrained(args, n_classes, model, optimizer=None, scheduler=None):
         torch.hub.download_url_to_file(link, load_modelName, progress=True)
 
     if args.model == "transformer":
-        model = change_max_pos_embd(args, new_mpe_size=169, n_classes=n_classes)
+        model = change_max_pos_embd(args, new_mpe_size=256, n_classes=n_classes)
 
     ckpt = torch.load(load_modelName)
     model.load_state_dict(ckpt["model"])

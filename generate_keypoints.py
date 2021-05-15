@@ -209,6 +209,6 @@ def save_keypoints(dataset, file_paths, mode):
 n_cores = multiprocessing.cpu_count()
 train_paths, val_paths, test_paths = load_train_test_val_paths(args)
 
-save_keypoints(args.dataset, train_paths, "train")
 save_keypoints(args.dataset, val_paths, "val")
 save_keypoints(args.dataset, test_paths, "test")
+save_keypoints(args.dataset, train_paths, "train")
