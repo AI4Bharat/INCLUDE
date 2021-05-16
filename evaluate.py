@@ -12,6 +12,7 @@ from generate_keypoints import process_video
 from models import Transformer
 from configs import TransformerConfig
 from utils import load_json, load_label_map
+import shutil
 
 parser = argparse.ArgumentParser(description="Evaluate function")
 parser.add_argument("--data_dir", required=True, help="data directory")
@@ -121,7 +122,7 @@ def inference(dataloader, model, device, label_map):
         input_data = batch["data"].to(device)
         output = model(input_data).detach().cpu()
         output = torch.argmax(torch.softmax(output, dim=-1), dim=-1).numpy()
-        predictions.append({"uid": batch["uid"][0], "label": label_map[output[0]]})
+        predictions.append({"uid": batch["uid"][0], "predicted_label": label_map[output[0]]})
 
     return predictions
 
@@ -129,7 +130,7 @@ def inference(dataloader, model, device, label_map):
 video_paths = glob.glob(os.path.join(args.data_dir, "*"))
 save_dir = "keypoints_dir"
 if os.path.isdir(save_dir):
-    os.rmdir(save_dir)
+    shutil.rmtree(save_dir)
 os.mkdir(save_dir)
 for path in tqdm(video_paths, desc="Processing Videos"):
     process_video(path, save_dir)
@@ -150,11 +151,11 @@ dataloader = data.DataLoader(
 label_map = dict(zip(label_map.values(), label_map.keys()))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-config = TransformerConfig(size="large", max_position_embeddings=169)
+config = TransformerConfig(size="large", max_position_embeddings=256)
 model = Transformer(config=config, n_classes=263)
 model = model.to(device)
 
-pretrained_model_name = "include_no_cnn_transformer.pth"
+pretrained_model_name = "include_no_cnn_transformer_large.pth"
 pretrained_model_links = load_json("pretrained_links.json")
 if not os.path.isfile(pretrained_model_name):
     link = pretrained_model_links[pretrained_model_name]
