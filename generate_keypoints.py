@@ -11,27 +11,6 @@ import numpy as np
 import gc
 import warnings
 
-parser = argparse.ArgumentParser(description="Generate keypoints from Mediapipe")
-parser.add_argument(
-    "--include_dir",
-    default="",
-    type=str,
-    required=True,
-    help="path to the location of INCLUDE/INCLUDE50 videos",
-)
-parser.add_argument(
-    "--save_dir",
-    default="",
-    type=str,
-    required=True,
-    help="location to output json file",
-)
-parser.add_argument(
-    "--dataset", default="include", type=str, help="options: include or include50"
-)
-args = parser.parse_args()
-
-
 def process_landmarks(landmarks):
     x_list, y_list = [], []
     for landmark in landmarks.landmark:
@@ -207,10 +186,30 @@ def save_keypoints(dataset, file_paths, mode):
         for path in tqdm(file_paths, desc=f"processing {mode} videos")
     )
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate keypoints from Mediapipe")
+    parser.add_argument(
+        "--include_dir",
+        default="",
+        type=str,
+        required=True,
+        help="path to the location of INCLUDE/INCLUDE50 videos",
+    )
+    parser.add_argument(
+        "--save_dir",
+        default="",
+        type=str,
+        required=True,
+        help="location to output json file",
+    )
+    parser.add_argument(
+        "--dataset", default="include", type=str, help="options: include or include50"
+    )
+    args = parser.parse_args()
 
-n_cores = multiprocessing.cpu_count()
-train_paths, val_paths, test_paths = load_train_test_val_paths(args)
+    n_cores = multiprocessing.cpu_count()
+    train_paths, val_paths, test_paths = load_train_test_val_paths(args)
 
-save_keypoints(args.dataset, val_paths, "val")
-save_keypoints(args.dataset, test_paths, "test")
-save_keypoints(args.dataset, train_paths, "train")
+    save_keypoints(args.dataset, val_paths, "val")
+    save_keypoints(args.dataset, test_paths, "test")
+    save_keypoints(args.dataset, train_paths, "train")
