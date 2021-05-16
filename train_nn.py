@@ -165,9 +165,7 @@ def fit(args):
             max_frame_len=169,
         )
         val_dataset = KeypointsDataset(
-            keypoints_dir=os.path.join(
-                args.data_dir, f"{args.dataset}_val_keypoints"
-            ),
+            keypoints_dir=os.path.join(args.data_dir, f"{args.dataset}_val_keypoints"),
             use_augs=False,
             label_map=label_map,
             mode="val",
@@ -258,9 +256,7 @@ def evaluate(args):
 
     else:
         dataset = KeypointsDataset(
-            keypoints_dir=os.path.join(
-                args.data_dir, f"{args.dataset}_test_keypoints"
-            ),
+            keypoints_dir=os.path.join(args.data_dir, f"{args.dataset}_test_keypoints"),
             use_augs=False,
             label_map=label_map,
             mode="test",

@@ -9,6 +9,7 @@ from tqdm.auto import tqdm
 from joblib import Parallel, delayed
 import numpy as np
 import gc
+import warnings
 
 parser = argparse.ArgumentParser(description="Generate keypoints from Mediapipe")
 parser.add_argument(
@@ -89,12 +90,13 @@ def process_video(path, save_dir):
     hand1_points_x, hand1_points_y = [], []
     hand2_points_x, hand2_points_y = [], []
 
-    label = path.split("/")[3]
+    label = path.split("/")[-2]
     label = "".join([i for i in label if i.isalpha()]).lower()
     uid = os.path.splitext(os.path.basename(path))[0]
     uid = "_".join([label, uid])
     n_frames = 0
-    assert os.path.isfile(path), path + " file not found"
+    if not os.path.isfile(path):
+        warnings.warn(path + " file not found")
     cap = cv2.VideoCapture(path)
     while cap.isOpened():
         ret, image = cap.read()
