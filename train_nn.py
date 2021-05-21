@@ -195,6 +195,9 @@ def fit(args):
         config = LstmConfig()
         if args.use_cnn:
             config.input_size = CnnConfig.output_dim
+            config.hidden_size = 128
+            config.num_layers = 2
+            config.dropout = 0
         model = LSTM(config=config, n_classes=n_classes)
     else:
         config = TransformerConfig(size=args.transformer_size)
@@ -226,14 +229,22 @@ def fit(args):
                 epoch + 1, train_loss, train_acc, val_loss, val_acc
             )
         )
-        scheduler.step(val_acc)
-        es(
-            model_path=model_path,
-            epoch_score=val_acc,
-            model=model,
-            optimizer=optimizer,
-            scheduler=scheduler,
-        )
+        if args.use_cnn:
+            es(
+                model_path=model_path,
+                epoch_score=val_acc,
+                model=model,
+                optimizer=optimizer,
+            )
+        else:
+            scheduler.step(val_acc)
+            es(
+                model_path=model_path,
+                epoch_score=val_acc,
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+            )
         if es.early_stop:
             print("Early stopping")
             break
@@ -275,6 +286,10 @@ def evaluate(args):
         config = LstmConfig()
         if args.use_cnn:
             config.input_size = CnnConfig.output_dim
+            config.hidden_size = 128
+            config.num_layers = 2
+            config.dropout = 0
+            print(config)
         model = LSTM(config=config, n_classes=n_classes)
     else:
         config = TransformerConfig(size=args.transformer_size)
